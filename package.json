@@ -1,7 +1,7 @@
 {
   "name": "kartenspieler-server",
   "version": "1.0.0",
-  "main": "backend-complete.js",
+"main": "server.js",
   "scripts": {
     "start": "node backend-complete.js"
   },
