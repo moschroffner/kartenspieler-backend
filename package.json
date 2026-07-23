@@ -1,0 +1,13 @@
+{
+  "name": "kartenspieler-server",
+  "version": "1.0.0",
+  "main": "backend-complete.js",
+  "scripts": {
+    "start": "node backend-complete.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}
