@@ -12,19 +12,7 @@ app.use(express.json());
 
 const rooms = new Map();
 const playerSessions = new Map();
-
-const SUITS = ['♥', '♦', '♣', '♠'];
-const RANKS = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-
-function createDeck() {
-  const deck = [];
-  for (let suit of SUITS) {
-    for (let rank of RANKS) {
-      deck.push({ suit, rank, id: `${rank}${suit}` });
-    }
-  }
-  return deck.sort(() => Math.random() - 0.5);
-}
+const playerWebSockets = new Map();
 
 wss.on('connection', (ws) => {
   console.log('New player connected');
@@ -32,25 +20,57 @@ wss.on('connection', (ws) => {
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data);
-      
-      if (msg.type === 'createRoom') {
+      const { playerId, type, gameType, roomCode } = msg;
+
+      console.log(`Message from ${playerId}: ${type}`);
+
+      if (type === 'createRoom') {
         const code = Math.random().toString(36).substr(2, 6).toUpperCase();
-        rooms.set(code, {
+        const room = {
           code,
-          players: [msg.playerId],
-          gameType: msg.gameType,
-          created: Date.now()
-        });
-        playerSessions.set(msg.playerId, code);
-        ws.send(JSON.stringify({ type: 'roomCreated', roomCode: code }));
+          gameType,
+          players: [playerId],
+          createdAt: Date.now()
+        };
+        rooms.set(code, room);
+        playerSessions.set(playerId, code);
+        playerWebSockets.set(playerId, ws);
+
+        console.log(`Room created: ${code}`);
+
+        ws.send(JSON.stringify({
+          type: 'roomCreated',
+          roomCode: code,
+          playerId: playerId
+        }));
       }
 
-      if (msg.type === 'joinRoom') {
-        const room = rooms.get(msg.roomCode);
+      if (type === 'joinRoom') {
+        const room = rooms.get(roomCode);
         if (room && room.players.length < 4) {
-          room.players.push(msg.playerId);
-          playerSessions.set(msg.playerId, msg.roomCode);
-          ws.send(JSON.stringify({ type: 'joinedRoom', roomCode: msg.roomCode }));
+          room.players.push(playerId);
+          playerSessions.set(playerId, roomCode);
+          playerWebSockets.set(playerId, ws);
+
+          console.log(`Player ${playerId} joined room ${roomCode}`);
+
+          ws.send(JSON.stringify({
+            type: 'joinedRoom',
+            roomCode: roomCode,
+            playerId: playerId
+          }));
+
+          // Notify others
+          room.players.forEach(pid => {
+            const playerWs = playerWebSockets.get(pid);
+            if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+              playerWs.send(JSON.stringify({
+                type: 'playerJoined',
+                players: room.players,
+                roomCode: roomCode
+              }));
+            }
+          });
         }
       }
 
@@ -61,6 +81,10 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     console.log('Player disconnected');
+  });
+
+  ws.on('error', (err) => {
+    console.error('WebSocket error:', err);
   });
 });
 
